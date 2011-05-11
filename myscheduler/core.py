@@ -55,8 +55,12 @@ DEFAULT_PREFS = {
     "low_active": -1,
     "low_active_down": -1,
     "low_active_up": -1,
-    "button_state": [[0] * 7 for dummy in xrange(24)]
+    "button_state": [[0] * 7 for dummy in xrange(24)],
+    "force_use_individual" : True,
+    "force_unforce_finished" : True
 }
+
+DEFAULT_STATES = {}
 
 STATES = {
     0: "Green",
@@ -92,12 +96,23 @@ class Core(CorePluginBase):
         DEFAULT_PREFS["low_active_down"] = core_config["max_active_downloading"]
         DEFAULT_PREFS["low_active_up"] = core_config["max_active_seeding"]
 
-        self.config = deluge.configmanager.ConfigManager("scheduler.conf", DEFAULT_PREFS)
+        self.config = deluge.configmanager.ConfigManager("myscheduler.conf", DEFAULT_PREFS)
+        self.torrent_states = deluge.configmanager.ConfigManager("myschedulerstates.conf", DEFAULT_STATES)
+        def clear_torrent_states(key, value):
+            del self.torrent_states[key]
+        self.torrent_states.register_set_function("clear", clear_torrent_states, False)
 
         self.state = self.get_state()
 
         # Apply the scheduling rules
         self.do_schedule(False)
+        
+        eventmanager = component.get("EventManager")
+        
+        eventmanager.register_event_handler("TorrentAddedEvent", self.update_torrent)
+        eventmanager.register_event_handler("TorrentResumedEvent", self.update_torrent)
+        eventmanager.register_event_handler("TorrentRemovedEvent", self._on_torrent_removed)
+        eventmanager.register_event_handler("TorrentFinishedEvent", self._on_torrent_finished)
 
         # Schedule the next do_schedule() call for on the next hour
         now = time.localtime(time.time())
@@ -105,7 +120,7 @@ class Core(CorePluginBase):
         self.timer = reactor.callLater(secs_to_next_hour, self.do_schedule)
 
         # Register for config changes so state isn't overridden
-        component.get("EventManager").register_event_handler("ConfigValueChangedEvent", self.on_config_value_changed)
+        eventmanager.register_event_handler("ConfigValueChangedEvent", self.on_config_value_changed)
 
     def disable(self):
         try:
@@ -114,6 +129,7 @@ class Core(CorePluginBase):
             pass
         component.get("EventManager").deregister_event_handler("ConfigValueChangedEvent", self.on_config_value_changed)
         self.__apply_set_functions()
+        self.torrent_states.apply_set_functions("clear")
 
     def update(self):
         pass
@@ -137,8 +153,10 @@ class Core(CorePluginBase):
         """
         This is where we apply schedule rules.
         """
+        log.debug("MyScheduler: do_schedule")
 
         state = self.get_state()
+        self.update_torrent()
 
         if state == "Green":
             # This is Green (Normal) so we just make sure we've applied the
@@ -156,7 +174,7 @@ class Core(CorePluginBase):
             session.set_settings(settings)
             # Resume the session if necessary
             component.get("Core").session.resume()
-        elif state == "Red":
+        elif not self.config["force_use_individual"] and state == "Red":
             # This is Red (Stop), so pause the libtorrent session
             component.get("Core").session.pause()
 
@@ -164,6 +182,10 @@ class Core(CorePluginBase):
             # The state has changed since last update so we need to emit an event
             self.state = state
             component.get("EventManager").emit(SchedulerEvent(self.state))
+
+        # called after self.state is set
+        if self.config["force_use_individual"] and (state == 'Green' or state == 'Red'):                 
+            self.update_torrent()
 
         if timer:
             # Call this again in 1 hour
@@ -187,3 +209,87 @@ class Core(CorePluginBase):
         now = time.localtime(time.time())
         level = self.config["button_state"][now[3]][now[6]]
         return STATES[level]
+
+    @export()
+    def get_forced(self, torrent_ids):
+        if not hasattr(torrent_ids, '__iter__'):
+            torrent_ids = [torrent_ids]
+            
+        def f(t_id):
+            try: 
+                return self.torrent_states[t_id]['forced']
+            except KeyError: 
+                return False
+        
+        return [ f(t) for t in torrent_ids]
+    
+    @export()
+    def set_forced(self, torrent_ids, forced=True):
+        log.debug("Setting torrent %s to forced=%s" % (torrent_ids, forced))
+        
+        if not hasattr(torrent_ids, '__iter__'): 
+            torrent_ids = [torrent_ids]
+            
+        for t in torrent_ids:
+            self.torrent_states[t]['forced'] = forced
+            
+        self.update_torrent(torrent_ids)
+
+    @export()
+    def update_torrent(self, torrent_ids = None):
+        if not self.config['force_use_individual']: 
+            return
+        
+        torrentmanager = component.get("Core").torrentmanager
+        
+        if torrent_ids is None: 
+            torrent_ids = torrentmanager.get_torrent_list() 
+        elif not hasattr(torrent_ids, '__iter__'):
+            torrent_ids = [torrent_ids]
+            
+        for torrent_id in torrent_ids:
+            torrent = torrentmanager.torrents[torrent_id]        
+            
+            try: 
+                tstate = self.torrent_states[torrent_id]
+            except KeyError: 
+                tstate = {'forced' : False, 'paused' : False }
+                self.torrent_states[torrent_id] = tstate
+                
+            if self.state == 'Green' or self.state == 'Yellow': 
+                if tstate['paused']:
+                    torrent.resume()
+                    tstate['paused'] = False
+            elif self.state == 'Red': 
+                # checking that state != paused is to make sure that we don't 
+                # set our paused flag on something that the user has paused previously
+                if not tstate['forced'] and torrent.state != 'Paused':
+                    torrent.pause()
+                    tstate['paused'] = True
+                elif tstate['forced']:
+                    torrent.resume()
+                    tstate['paused'] = False
+        
+        self.torrent_states.save()
+
+    def _on_torrent_finished(self, torrent_id):
+        if self.config["force_unforce_finished"]: 
+            try: 
+                tstate = self.torrent_states[torrent_id]
+            except KeyError: 
+                pass
+            else: 
+                if tstate['forced']: 
+                    tstate['forced'] = False
+                    tstate['paused'] = False
+                    self.update_torrent(torrent_id)
+                    
+    def _on_torrent_removed(self, torrent_id):
+        try:
+            del self.torrent_states[torrent_id]
+        except KeyError:
+            pass
+        else: 
+            self.torrent_states.save()
+            
+ 

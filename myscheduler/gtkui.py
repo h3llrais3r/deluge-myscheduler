@@ -162,16 +162,24 @@ class GtkUI(GtkPluginBase):
             image=get_resource("green.png"),
             text="",
             callback=self.on_status_item_clicked,
-            tooltip="Scheduler")
+            tooltip="MyScheduler")
+        
+        torrentmenu = component.get("MenuBar").torrentmenu
+        self.menu = gtk.CheckMenuItem(_("Force Start"))
+        self.menu.connect("activate", self.on_menu_activated, None)        
+        self.menu.show()
+        
+        torrentmenu.connect("show", self.on_menu_show, None)
+        torrentmenu.append(self.menu)
 
         def on_get_state(state):
             self.status_item.set_image_from_file(get_resource(state.lower() + ".png"))
 
-        self.state_deferred = client.scheduler.get_state().addCallback(on_get_state)
+        self.state_deferred = client.myscheduler.get_state().addCallback(on_get_state)
         client.register_event_handler("SchedulerEvent", self.on_scheduler_event)
 
     def disable(self):
-        component.get("Preferences").remove_page("Scheduler")
+        component.get("Preferences").remove_page("MyScheduler")
         # Remove status item
         component.get("StatusBar").remove_item(self.status_item)
         del self.status_item
@@ -179,8 +187,12 @@ class GtkUI(GtkPluginBase):
         component.get("PluginManager").deregister_hook("on_apply_prefs", self.on_apply_prefs)
         component.get("PluginManager").deregister_hook("on_show_prefs", self.on_show_prefs)
 
+        torrentmenu = component.get("MenuBar").torrentmenu
+        torrentmenu.remove(self.menu)
+        self.menu = None 
+
     def on_apply_prefs(self):
-        log.debug("applying prefs for Scheduler")
+        log.debug("applying prefs for MyScheduler")
         config = {}
         config["low_down"] = self.spin_download.get_value()
         config["low_up"] = self.spin_upload.get_value()
@@ -188,7 +200,9 @@ class GtkUI(GtkPluginBase):
         config["low_active_down"] = self.spin_active_down.get_value_as_int()
         config["low_active_up"] = self.spin_active_up.get_value_as_int()
         config["button_state"] = self.scheduler_select.button_state
-        client.scheduler.set_config(config)
+        config["force_use_individual"] = self.chkIndividual.get_active()
+        config["force_unforce_finished"] = self.chkUnforceFinished.get_active()
+        client.myscheduler.set_config(config)
 
     def on_show_prefs(self):
         def on_get_config(config):
@@ -199,9 +213,10 @@ class GtkUI(GtkPluginBase):
             self.spin_active.set_value(config["low_active"])
             self.spin_active_down.set_value(config["low_active_down"])
             self.spin_active_up.set_value(config["low_active_up"])
+            self.chkIndividual.set_active(config["force_use_individual"])
+            self.chkUnforceFinished.set_active(config["force_unforce_finished"])
 
-
-        client.scheduler.get_config().addCallback(on_get_config)
+        client.myscheduler.get_config().addCallback(on_get_config)
 
     def on_scheduler_event(self, state):
         def on_state_deferred(s):
@@ -210,7 +225,16 @@ class GtkUI(GtkPluginBase):
         self.state_deferred.addCallback(on_state_deferred)
 
     def on_status_item_clicked(self, widget, event):
-        component.get("Preferences").show("Scheduler")
+        component.get("Preferences").show("MyScheduler")
+
+    def on_menu_show(self, widget=None, data=None):        
+        def set_active(forced):
+            self.menu.set_active(not False in forced) 
+            
+        client.myscheduler.get_forced([ t for t in component.get("TorrentView").get_selected_torrents() ]).addCallback(set_active)        
+        
+    def on_menu_activated(self, widget=None, torrent_id=None):
+        client.myscheduler.set_forced(component.get("TorrentView").get_selected_torrents(), self.menu.get_active()) 
 
     #Configuration dialog
     def create_prefs_page(self):
@@ -234,6 +258,20 @@ class GtkUI(GtkPluginBase):
 
         vbox.pack_start(frame, True, True)
         vbox.pack_start(hover)
+
+        frame = gtk.Frame()
+        label = gtk.Label()
+        label.set_markup(_("<b>Forced Settings</b>"))
+        frame.set_label_widget(label)
+            
+        forcedvbox = gtk.VBox(False, 1)
+        self.chkIndividual = gtk.CheckButton("Use Individual Scheduling")
+        forcedvbox.pack_start(self.chkIndividual)
+        self.chkUnforceFinished = gtk.CheckButton("Un-Force on Finished")
+        forcedvbox.pack_start(self.chkUnforceFinished)        
+
+        frame.add(forcedvbox)
+        vbox.pack_start(frame, False, False)
 
         table = gtk.Table(3, 4)
 
@@ -295,4 +333,4 @@ class GtkUI(GtkPluginBase):
         vbox.pack_start(frame, False, False)
 
         vbox.show_all()
-        component.get("Preferences").add_page("Scheduler", vbox)
+        component.get("Preferences").add_page("MyScheduler", vbox)

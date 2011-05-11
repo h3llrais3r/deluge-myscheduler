@@ -38,4 +38,4 @@
 
 def get_resource(filename):
     import pkg_resources, os
-    return pkg_resources.resource_filename("scheduler", os.path.join("data", filename))
+    return pkg_resources.resource_filename("myscheduler", os.path.join("data", filename))

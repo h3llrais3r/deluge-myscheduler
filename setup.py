@@ -38,14 +38,14 @@
 
 from setuptools import setup
 
-__plugin_name__ = "Scheduler"
-__author__ = "Andrew Resch"
-__author_email__ = "andrewresch@gmail.com"
-__version__ = "0.2"
+__plugin_name__ = "MyScheduler"
+__author__ = "Jamie Lennox"
+__author_email__ = "jamielennox@gmail.com"
+__version__ = "0.2.2"
 __url__ = "http://deluge-torrent.org"
 __license__ = "GPLv3"
 __description__ = "Schedule limits on a per-hour per-day basis."
-__long_description__ = """"""
+__long_description__ = """Modification of Deluge's original scheduler to allow per torrent scheduling"""
 __pkg_data__ = {__plugin_name__.lower(): ["template/*", "data/*"]}
 
 setup(
