@@ -1,0 +1,5 @@
+MyScheduler.egg-info
+build
+dist
+*.pyc
+*.pyo
