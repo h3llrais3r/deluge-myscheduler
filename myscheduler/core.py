@@ -102,26 +102,24 @@ class Core(CorePluginBase):
 
         self.config = deluge.configmanager.ConfigManager("myscheduler.conf", DEFAULT_PREFS)
         self.torrent_states = deluge.configmanager.ConfigManager("myschedulerstates.conf", DEFAULT_STATES)
-        def clear_torrent_states(key, value):
-            del self.torrent_states[key]
-        self.torrent_states.register_set_function("clear", clear_torrent_states, False)
 
+        self._cleanup_states() 
         self.state = self.get_state()
 
         # Apply the scheduling rules
         self.do_schedule(False)
         
-        eventmanager = component.get("EventManager")
-        
-        eventmanager.register_event_handler("TorrentAddedEvent", self.update_torrent)
-        eventmanager.register_event_handler("TorrentResumedEvent", self.update_torrent)
-        eventmanager.register_event_handler("TorrentRemovedEvent", self._on_torrent_removed)
-        eventmanager.register_event_handler("TorrentFinishedEvent", self._on_torrent_finished)
-
         # Schedule the next do_schedule() call for on the next hour
         now = time.localtime(time.time())
         secs_to_next_hour = ((60 - now[4]) * 60) + (60 - now[5])
         self.timer = reactor.callLater(secs_to_next_hour, self.do_schedule)
+
+        eventmanager = component.get("EventManager")
+        
+        eventmanager.register_event_handler("TorrentAddedEvent", self.update_torrent)
+        eventmanager.register_event_handler("TorrentResumedEvent", self.update_torrent)
+        eventmanager.register_event_handler("TorrentRemovedEvent", self._remove_torrent)
+        eventmanager.register_event_handler("TorrentFinishedEvent", self._on_torrent_finished)
 
         # Register for config changes so state isn't overridden
         eventmanager.register_event_handler("ConfigValueChangedEvent", self.on_config_value_changed)
@@ -131,13 +129,20 @@ class Core(CorePluginBase):
             self.timer.cancel()
         except:
             pass
-        component.get("EventManager").deregister_event_handler("ConfigValueChangedEvent", self.on_config_value_changed)
+
+        eventmanager = component.get("EventManager")
+
+        eventmanager.deregister_event_handler("TorrentAddedEvent", self.update_torrent)
+        eventmanager.deregister_event_handler("TorrentResumedEvent", self.update_torrent)
+        eventmanager.deregister_event_handler("TorrentRemovedEvent", self._remove_torrent)
+        eventmanager.deregister_event_handler("TorrentFinishedEvent", self._on_torrent_finished)
+
+        eventmanager.deregister_event_handler("ConfigValueChangedEvent", self.on_config_value_changed)
+
         self.__apply_set_functions()
-        self.torrent_states.apply_set_functions("clear")
 
     def update(self):
         pass
-
 
     def on_config_value_changed(self, key, value):
         if key in CONTROLLED_SETTINGS:
@@ -287,13 +292,30 @@ class Core(CorePluginBase):
                     tstate['forced'] = False
                     tstate['paused'] = False
                     self.update_torrent(torrent_id)
-                    
-    def _on_torrent_removed(self, torrent_id):
-        try:
-            del self.torrent_states[torrent_id]
-        except KeyError:
-            pass
-        else: 
-            self.torrent_states.save()
-            
+     
+    def _cleanup_states(self): 
+        valid = set(component.get("Core").torrentmanager.get_torrent_list())
+        saved = set(self.torrent_states.config.keys())
+
+        self._remove_torrent(saved - valid)
+
+    def _remove_torrent(self, torrent_ids):
+        do_save = False
+
+        if not hasattr(torrent_ids, '__iter__'): 
+            torrent_ids = [torrent_ids]
+
+        for torrent_id in torrent_ids: 
+            try:
+                try:
+                    del self.torrent_states[torrent_id]
+                except AttributeError:
+                    # old config's didn't have a __delitem__
+                    # new config's do and do a .save() automatically
+                    del self.torrent_states.config[torrent_id]
+                    do_save = True
+            except KeyError:
+                pass
  
+        if do_save:
+            self.torrent_states.save()
