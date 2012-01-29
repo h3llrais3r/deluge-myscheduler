@@ -1,14 +1,13 @@
-ScheduleSelectPanel = Ext.extend(Ext.form.FieldSet, {
-	constructor: function(config) {
-		config = Ext.apply({
-			title: _('Schedule'),
-			autoHeight: true
-		}, config);
-		ScheduleSelectPanel.superclass.constructor.call(this, config);
-	},
+Ext.ns('Deluge.ux.preferences'); 
+
+/*
+Deluge.ux.preferences.MySchedulerSelectPanel = Ext.extend(Ext.form.FieldSet, {
+
+    title: _('Schedule'), 
+    autoHeight: true,
 	
 	onRender: function(ct, position) {
-		ScheduleSelectPanel.superclass.onRender.call(this, ct, position);
+		Deluge.ux.preferences.MySchedulerSelectPanel.superclass.onRender.call(this, ct, position);
 		
 		var dom = this.body.dom;
 		var table = createEl(dom, 'table');
@@ -32,32 +31,31 @@ ScheduleSelectPanel = Ext.extend(Ext.form.FieldSet, {
 	}
 });
 
-SchedulerPreferences = Ext.extend(Ext.Panel, {
-	constructor: function(config) {
-		config = Ext.apply({
-			border: false,
-			title: _('Scheduler')
-		}, config);
-		SchedulerPreferences.superclass.constructor.call(this, config);
-	},
+Deluge.ux.preferences.MySchedulerPreferences = Ext.extend(Ext.Panel, {
 	
-	initComponent: function() {
-		SchedulerPreferences.superclass.initComponent.call(this);
+    constructor: function (config) { 
+        name: "MyScheduler", 
+    }, config)
+    title: _('MyScheduler'), 
+    border: false, 
 
+	initComponent: function() {
+		Deluge.ux.preferences.MySchedulerPreferences.superclass.initComponent.call(this);
+       
 		this.form = this.add({
 			xtype: 'form',
 			layout: 'form',
 			border: false,
 			autoHeight: true
-		});
-		
-		this.schedule = this.form.add(new ScheduleSelectPanel());
+		}); 
+
+		this.schedule = this.form.add(new Deluge.ux.preferences.MySchedulerSelectPanel());
 		
 		this.slowSettings = this.form.add({
 			xtype: 'fieldset',
 			title: _('Slow Settings'),
 			autoHeight: true,
-			defaultType: 'uxspinner'
+			defaultType: 'spinnerfield'
 		});
 		
 		this.downloadLimit = this.slowSettings.add({
@@ -75,32 +73,88 @@ SchedulerPreferences = Ext.extend(Ext.Panel, {
 	},
 	
 	onRender: function(ct, position) {
-		SchedulerPreferences.superclass.onRender.call(this, ct, position);
+		Deluge.ux.preferences.MySchedulerPreferences.superclass.onRender.call(this, ct, position);
 		this.form.layout = new Ext.layout.FormLayout();
 		this.form.layout.setContainer(this);
 		this.form.doLayout();
 	},
-	
-	onShow: function() {
-		SchedulerPreferences.superclass.onShow.call(this);
+
+    onShow: function() {
+		Deluge.ux.preferences.MySchedulerPreferences.superclass.onShow.call(this);
 	}
+});
+*/
+Ext.ns('Deluge.plugins');
+
+Deluge.plugins.MySchedulerPlugin = Ext.extend(Deluge.Plugin, {
+
+    name : 'MyScheduler', 
+    prefsPage: null,    
+    menuItem: null, 
+
+    onDisable: function() {
+		//deluge.preferences.removePage(this.prefsPage);
+        deluge.menus.torrent.remove(this.menuItem); 
+
+        deluge.menus.torrent.un('beforeshow', this.onMenuShow, this);
+
+        this.prefsPage = null; 
+        this.menuItem = null;
+	},
+
+    onMenuShow: function () { 
+        var ids = deluge.torrents.getSelectedIds(); 
+        this.menuItem.setChecked(false, true);
+
+        deluge.client.myscheduler.get_forced (ids, {
+            success: function (checked) {
+                // show true only if every id is forced=true, dumb loop as apparently IE can't handle a .IndexOf
+                var res = true; 
+                for (var i = 0; i < checked.length; i++) {
+                    if (!checked[i]) {
+                        res = false; 
+                        break;
+                    }
+                }
+
+                this.menuItem.setChecked(res, true);
+            }, 
+            
+            failure: function () { 
+                console.warning ("Failed to get forced state"); 
+            },
+
+            scope: this,
+        });
+        return true;
+    }, 
+
+	onEnable: function() {
+		//this.prefsPage = deluge.preferences.addPage (new Deluge.ux.preferences.MySchedulerPreferences());
+
+        this.menuItem = deluge.menus.torrent.add(new Ext.menu.CheckItem ({
+            text: _('Forced Start'), 
+            checked: false, 
+
+            checkHandler: function (item, checked) { 
+                var ids = deluge.torrents.getSelectedIds();
+                deluge.client.myscheduler.set_forced (ids, checked, {
+                    success: function () { 
+                        console.log ("Successfully set forced = " + checked);
+                    }, 
+
+                    failure: function () {
+                        console.warning ("Failed to set forced for " + ids + " to " + checked);
+                        this.menuItem.setChecked(false, true);
+                    },
+
+                    scope: this,
+                });
+            },
+        }));
+
+        deluge.menus.torrent.on('show', this.onMenuShow, this); 
+    },
 });
 
-SchedulerPlugin = Ext.extend(Deluge.Plugin, {
-	constructor: function(config) {
-		config = Ext.apply({
-			name: "Scheduler"
-		}, config);
-		SchedulerPlugin.superclass.constructor.call(this, config);
-	},
-	
-	onDisable: function() {
-		Deluge.Preferences.removePage(this.prefsPage);
-	},
-	
-	onEnable: function() {
-		this.prefsPage = new SchedulerPreferences();
-		this.prefsPage = Deluge.Preferences.addPage(this.prefsPage);
-	}
-});
-new SchedulerPlugin();
+Deluge.registerPlugin('MyScheduler', Deluge.plugins.MySchedulerPlugin);
