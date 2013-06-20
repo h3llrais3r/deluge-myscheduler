@@ -446,7 +446,13 @@ Deluge.ux.ScheduleSelector = Ext.extend(Ext.form.FieldSet, {
         return config;
     },
 
+    // This method updates the status of the displayed table of hours and days in the preferences page.
     setConfig: function(config) {
+        // It's possible that this method is called before the MyScheduler page is actually displayed.  Because of this
+        // it is necessary to perform a sanity check first.
+        // Fix for '[Scheduler] this.scheduleCells is undefined' http://dev.deluge-torrent.org/ticket/2238
+        if (this.scheduleCells == undefined) return;
+
         for (var i=0; i < 24; i++) {
             var hourConfig = config[i];
 
