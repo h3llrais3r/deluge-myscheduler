@@ -38,13 +38,7 @@
 
 import gtk
 
-try:
-    from deluge.log import getPluginLogger
-except ImportError:
-    from deluge.log import LOG as log
-else: 
-    log = getPluginLogger(__name__)
-
+from deluge.log import LOG as log
 from deluge.ui.client import client
 from deluge.plugins.pluginbase import GtkPluginBase
 import deluge.component as component
@@ -83,20 +77,20 @@ class SchedulerSelectWidget(gtk.DrawingArea):
 
     #redraw the whole thing
     def expose(self, widget, event):
-        self.context = self.window.cairo_create()
-        self.context.rectangle(event.area.x, event.area.y, event.area.width, event.area.height)
-        self.context.clip()
+        context = self.window.cairo_create()
+        context.rectangle(event.area.x, event.area.y, event.area.width, event.area.height)
+        context.clip()
 
         width = self.window.get_size()[0]
         height = self.window.get_size()[1]
 
         for y in xrange(7):
             for x in xrange(24):
-                self.context.set_source_rgba(self.colors[self.button_state[x][y]][0], self.colors[self.button_state[x][y]][1], self.colors[self.button_state[x][y]][2], 0.7)
-                self.context.rectangle(width*(6*x/145.0+1/145.0), height*(6*y/43.0+1/43.0), 5*width/145.0, 5*height/43.0)
-                self.context.fill_preserve()
-                self.context.set_source_rgba(0.5, 0.5, 0.5, 0.5)
-                self.context.stroke()
+                context.set_source_rgba(self.colors[self.button_state[x][y]][0], self.colors[self.button_state[x][y]][1], self.colors[self.button_state[x][y]][2], 0.7)
+                context.rectangle(width*(6*x/145.0+1/145.0), height*(6*y/43.0+1/43.0), 5*width/145.0, 5*height/43.0)
+                context.fill_preserve()
+                context.set_source_rgba(0.5, 0.5, 0.5, 0.5)
+                context.stroke()
 
     #coordinates --> which box
     def get_point(self, event):
@@ -161,31 +155,34 @@ class GtkUI(GtkPluginBase):
 
         component.get("PluginManager").register_hook("on_apply_prefs", self.on_apply_prefs)
         component.get("PluginManager").register_hook("on_show_prefs", self.on_show_prefs)
-
-        self.status_item = component.get("StatusBar").add_item(
+        self.statusbar = component.get("StatusBar")
+        self.status_item = self.statusbar.add_item(
             image=get_resource("green.png"),
             text="",
             callback=self.on_status_item_clicked,
             tooltip="MyScheduler")
-        
-        torrentmenu = component.get("MenuBar").torrentmenu
+
         self.menu = gtk.CheckMenuItem(_("Force Start"))
         self.menu.connect("activate", self.on_menu_activated, None)        
         self.menu.show()
         
+        torrentmenu = component.get("MenuBar").torrentmenu
         torrentmenu.connect("show", self.on_menu_show, None)
         torrentmenu.append(self.menu)
 
-        def on_get_state(state):
-            self.status_item.set_image_from_file(get_resource(state.lower() + ".png"))
-
-        self.state_deferred = client.myscheduler.get_state().addCallback(on_get_state)
+        def on_state_deferred(state):
+            self.state = state
+            self.on_scheduler_event(state)
+        client.scheduler.get_state().addCallback(on_state_deferred)
         client.register_event_handler("SchedulerEvent", self.on_scheduler_event)
 
     def disable(self):
-        component.get("Preferences").remove_page("MyScheduler")
-        # Remove status item
-        component.get("StatusBar").remove_item(self.status_item)
+        component.get("Preferences").remove_page(_("MyScheduler"))
+        # Reset statusbar dict.
+        self.statusbar.config_value_changed_dict["max_download_speed"] = self.statusbar._on_max_download_speed
+        self.statusbar.config_value_changed_dict["max_upload_speed"] = self.statusbar._on_max_upload_speed
+        # Remove statusbar item.
+        self.statusbar.remove_item(self.status_item)
         del self.status_item
 
         component.get("PluginManager").deregister_hook("on_apply_prefs", self.on_apply_prefs)
@@ -220,13 +217,34 @@ class GtkUI(GtkPluginBase):
             self.chkIndividual.set_active(config["force_use_individual"])
             self.chkUnforceFinished.set_active(config["force_unforce_finished"])
 
-        client.myscheduler.get_config().addCallback(on_get_config)
+
+        client.scheduler.get_config().addCallback(on_get_config)
 
     def on_scheduler_event(self, state):
-        def on_state_deferred(s):
-            self.status_item.set_image_from_file(get_resource(state.lower() + ".png"))
+        self.state = state
+        self.status_item.set_image_from_file(get_resource(self.state.lower() + ".png"))
+        if self.state == "Yellow":
+            # Prevent func calls in Statusbar if the config changes.
+            self.statusbar.config_value_changed_dict.pop("max_download_speed", None)
+            self.statusbar.config_value_changed_dict.pop("max_upload_speed", None)
+            try:
+                self.statusbar._on_max_download_speed(self.spin_download.get_value())
+                self.statusbar._on_max_upload_speed(self.spin_upload.get_value())
+            except AttributeError:
+                # Skip error due to Plugin being enabled before statusbar items created on startup.
+                pass
+        else:
+            self.statusbar.config_value_changed_dict["max_download_speed"] = self.statusbar._on_max_download_speed
+            self.statusbar.config_value_changed_dict["max_upload_speed"] = self.statusbar._on_max_upload_speed
 
-        self.state_deferred.addCallback(on_state_deferred)
+            def update_config_values(config):
+                try:
+                    self.statusbar._on_max_download_speed(config["max_download_speed"])
+                    self.statusbar._on_max_upload_speed(config["max_upload_speed"])
+                except AttributeError:
+                    # Skip error due to Plugin being enabled before statusbar items created on startup.
+                    pass
+            client.core.get_config_values(["max_download_speed", "max_upload_speed"]).addCallback(update_config_values)
 
     def on_status_item_clicked(self, widget, event):
         component.get("Preferences").show("MyScheduler")
@@ -337,4 +355,4 @@ class GtkUI(GtkPluginBase):
         vbox.pack_start(frame, False, False)
 
         vbox.show_all()
-        component.get("Preferences").add_page("MyScheduler", vbox)
+        component.get("Preferences").add_page(_("MyScheduler"), vbox)
