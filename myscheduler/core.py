@@ -38,13 +38,7 @@
 
 import time
 
-try:
-    from deluge.log import getPluginLogger
-except ImportError:
-    from deluge.log import LOG as log
-else:
-    log = getPluginLogger(__name__)
-
+from deluge.log import LOG as log
 from deluge.plugins.pluginbase import CorePluginBase
 import deluge.component as component
 import deluge.configmanager
@@ -103,12 +97,12 @@ class Core(CorePluginBase):
         self.config = deluge.configmanager.ConfigManager("myscheduler.conf", DEFAULT_PREFS)
         self.torrent_states = deluge.configmanager.ConfigManager("myschedulerstates.conf", DEFAULT_STATES)
 
-        self._cleanup_states() 
+        self._cleanup_states()
         self.state = self.get_state()
 
         # Apply the scheduling rules
         self.do_schedule(False)
-        
+
         # Schedule the next do_schedule() call for on the next hour
         now = time.localtime(time.time())
         secs_to_next_hour = ((60 - now[4]) * 60) + (60 - now[5])
@@ -144,6 +138,7 @@ class Core(CorePluginBase):
     def update(self):
         pass
 
+
     def on_config_value_changed(self, key, value):
         if key in CONTROLLED_SETTINGS:
             self.do_schedule(False)
@@ -156,13 +151,12 @@ class Core(CorePluginBase):
         for setting in CONTROLLED_SETTINGS:
             core_config.apply_set_functions(setting)
         # Resume the session if necessary
-        component.get("Core").session.resume()
+        component.get("Core").resume_all_torrents()
 
     def do_schedule(self, timer=True):
         """
         This is where we apply schedule rules.
         """
-        log.debug("MyScheduler: do_schedule")
 
         state = self.get_state()
         self.update_torrent()
@@ -182,10 +176,10 @@ class Core(CorePluginBase):
             settings.active_seeds = self.config["low_active_up"]
             session.set_settings(settings)
             # Resume the session if necessary
-            component.get("Core").session.resume()
-        elif not self.config["force_use_individual"] and state == "Red":
+            component.get("Core").resume_all_torrents()
+        elif state == "Red":
             # This is Red (Stop), so pause the libtorrent session
-            component.get("Core").session.pause()
+            component.get("Core").pause_all_torrents()
 
         if state != self.state:
             # The state has changed since last update so we need to emit an event

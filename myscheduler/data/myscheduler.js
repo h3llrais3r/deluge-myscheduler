@@ -1,6 +1,38 @@
+/*
+Script: myscheduler.js
+    The client-side javascript code for the MyScheduler plugin.
 
-Ext.ns('Deluge.plugins');
-Ext.ns('Deluge.ux.preferences');
+Copyright:
+    (C) samuel337 2011
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 3, or (at your option)
+    any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, write to:
+        The Free Software Foundation, Inc.,
+        51 Franklin Street, Fifth Floor
+        Boston, MA  02110-1301, USA.
+
+    In addition, as a special exception, the copyright holders give
+    permission to link the code of portions of this program with the OpenSSL
+    library.
+    You must obey the GNU General Public License in all respects for all of
+    the code used other than OpenSSL. If you modify file(s) with this
+    exception, you may extend this exception to your version of the file(s),
+    but you are not obligated to do so. If you do not wish to do so, delete
+    this exception statement from your version. If you delete this exception
+    statement from all source files in the program, then also delete it here.
+*/
+
+Ext.ns('Deluge.ux');
+
 Deluge.ux.ScheduleSelector = Ext.extend(Ext.form.FieldSet, {
 
     title: _('Schedule'),
@@ -35,16 +67,16 @@ Deluge.ux.ScheduleSelector = Ext.extend(Ext.form.FieldSet, {
 
         // ExtJS' radiogroup implementation is very broken for styling.
         /*this.stateBrush = this.add({
-         xtype: 'radiogroup',
-         fieldLabel: _('State Brush'),
-         name: 'current_state_brush',
-         submitValue: false,
-         items: [
-         { boxLabel: 'Normal', name: 'current_state_brush', inputValue: 0 },
-         { boxLabel: 'Throttled', name: 'current_state_brush', inputValue: 1, checked: true },
-         { boxLabel: 'Paused', name: 'current_state_brush', inputValue: 2 },
-         ]
-         });*/
+            xtype: 'radiogroup',
+            fieldLabel: _('State Brush'),
+            name: 'current_state_brush',
+            submitValue: false,
+            items: [
+                { boxLabel: 'Normal', name: 'current_state_brush', inputValue: 0 },
+                { boxLabel: 'Throttled', name: 'current_state_brush', inputValue: 1, checked: true },
+                { boxLabel: 'Paused', name: 'current_state_brush', inputValue: 2 },
+            ]
+        });*/
     },
 
     onRender: function(ct, position) {
@@ -216,7 +248,7 @@ Deluge.ux.ScheduleSelector = Ext.extend(Ext.form.FieldSet, {
         if (!this.dragAnchor)
             leftTooltipCell = cell;
         else if ((this.dragAnchor && this.isCellLeftTooltipHidden()) ||
-            (this.dragAnchor && this.dragAnchor.hour > cell.hour))
+             (this.dragAnchor && this.dragAnchor.hour > cell.hour))
             leftTooltipCell = this.dragAnchor;
 
         if (leftTooltipCell) {
@@ -446,18 +478,16 @@ Deluge.ux.ScheduleSelector = Ext.extend(Ext.form.FieldSet, {
         return config;
     },
 
-    // This method updates the status of the displayed table of hours and days in the preferences page.
     setConfig: function(config) {
-        // It's possible that this method is called before the MyScheduler page is actually displayed.  Because of this
-        // it is necessary to perform a sanity check first.
-        // Fix for '[Scheduler] this.scheduleCells is undefined' http://dev.deluge-torrent.org/ticket/2238
-        if (this.scheduleCells == undefined) return;
-
         for (var i=0; i < 24; i++) {
             var hourConfig = config[i];
 
             for (var j=0; j < this.daysOfWeek.length; j++) {
-                var cell = this.scheduleCells[this.daysOfWeek[j]][i];
+                if (this.scheduleCells == undefined) {
+                    var cell = hourConfig[j];
+                } else {
+                    var cell = this.scheduleCells[this.daysOfWeek[j]][i];
+                }
                 cell.currentValue = cell.oldValue = hourConfig[j];
                 this.updateCell(cell);
             }
@@ -535,7 +565,7 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
             decimalPrecision: 0
         });
 
-        deluge.preferences.on('show', this.updateConfig, this);
+        this.on('show', this.updateConfig, this);
     },
 
     onRender: function(ct, position) {
@@ -582,6 +612,8 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
         });
     }
 });
+
+Ext.ns('Deluge.plugins');
 
 Deluge.plugins.MySchedulerPlugin = Ext.extend(Deluge.Plugin, {
 
