@@ -1,4 +1,4 @@
-# Project Moved
-Due to no longer using deluge or this plugin I am deprecating this repo in favour of [h3llrais3r/deluge-myscheduler](https://github.com/h3llrais3r/deluge-myscheduler). Please submit any future pull requests or issues there.
+# Deluge myscheduler
 
-Thanks.
+Modified version of the Deluge scheduler plugin with 'force start' support.
+Many thanks to [@jamielennox](https://github.com/jamielennox) for the initial version and [@kingamajick](https://github.com/kingamajick) for adding the webui component and cleanup.
