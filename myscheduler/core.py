@@ -106,6 +106,7 @@ class Core(CorePluginBase):
         # Schedule the next do_schedule() call for on the next hour
         now = time.localtime(time.time())
         secs_to_next_hour = ((60 - now[4]) * 60) + (60 - now[5])
+        log.debug("Next schedule check in %s seconds" % secs_to_next_hour)
         self.timer = reactor.callLater(secs_to_next_hour, self.do_schedule)
 
         eventmanager = component.get("EventManager")
@@ -157,6 +158,7 @@ class Core(CorePluginBase):
         """
         This is where we apply schedule rules.
         """
+        log.debug("Checking schedule")
 
         state = self.get_state()
         self.update_torrent()
@@ -192,6 +194,7 @@ class Core(CorePluginBase):
 
         if timer:
             # Call this again in 1 hour
+            log.debug("Next schedule check in 3600 seconds")
             self.timer = reactor.callLater(3600, self.do_schedule)
 
     @export()
