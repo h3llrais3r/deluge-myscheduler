@@ -43,7 +43,7 @@ from deluge.plugins.pluginbase import CorePluginBase
 import deluge.component as component
 import deluge.configmanager
 from deluge.core.rpcserver import export
-from deluge.event import DelugeEvent
+from deluge.event import DelugeEvent, SessionResumedEvent
 
 from twisted.internet import reactor
 
@@ -110,7 +110,7 @@ class Core(CorePluginBase):
         self.timer = reactor.callLater(secs_to_next_hour, self.do_schedule)
 
         eventmanager = component.get("EventManager")
-        
+
         eventmanager.register_event_handler("TorrentAddedEvent", self.update_torrent)
         eventmanager.register_event_handler("TorrentResumedEvent", self.update_torrent)
         eventmanager.register_event_handler("TorrentRemovedEvent", self._remove_torrent)
@@ -152,7 +152,7 @@ class Core(CorePluginBase):
         for setting in CONTROLLED_SETTINGS:
             core_config.apply_set_functions(setting)
         # Resume the session if necessary
-        component.get("Core").resume_all_torrents()
+        self.resume_all_torrents()
 
     def do_schedule(self, timer=True):
         """
@@ -178,10 +178,10 @@ class Core(CorePluginBase):
             settings.active_seeds = self.config["low_active_up"]
             session.set_settings(settings)
             # Resume the session if necessary
-            component.get("Core").resume_all_torrents()
+            self.resume_all_torrents()
         elif state == "Red":
             # This is Red (Stop), so pause the libtorrent session
-            component.get("Core").pause_all_torrents()
+            self.pause_all_torrents()
 
         if state != self.state:
             # The state has changed since last update so we need to emit an event
@@ -189,7 +189,7 @@ class Core(CorePluginBase):
             component.get("EventManager").emit(SchedulerEvent(self.state))
 
         # called after self.state is set
-        if self.config["force_use_individual"] and (state == 'Green' or state == 'Red'):                 
+        if self.config["force_use_individual"] and (state == 'Green' or state == 'Red'):
             self.update_torrent()
 
         if timer:
@@ -220,54 +220,73 @@ class Core(CorePluginBase):
     def get_forced(self, torrent_ids):
         if not hasattr(torrent_ids, '__iter__'):
             torrent_ids = [torrent_ids]
-            
+
         def f(t_id):
-            try: 
+            try:
                 return self.torrent_states[t_id]['forced']
-            except KeyError: 
+            except KeyError:
                 return False
-        
+
         return [ f(t) for t in torrent_ids]
-    
+
     @export()
     def set_forced(self, torrent_ids, forced=True):
         log.debug("Setting torrent %s to forced=%s" % (torrent_ids, forced))
-        
-        if not hasattr(torrent_ids, '__iter__'): 
+
+        if not hasattr(torrent_ids, '__iter__'):
             torrent_ids = [torrent_ids]
-            
+
         for t in torrent_ids:
             self.torrent_states[t]['forced'] = forced
-            
+
         self.update_torrent(torrent_ids)
 
     @export()
+    def pause_all_torrents(self):
+        """
+        Pause all torrents in the session.
+        Fix for https://github.com/h3llrais3r/deluge-myscheduler/issues/4
+        """
+        for torrent in component.get("Core").torrentmanager.torrents.values():
+            torrent.pause()
+
+    @export()
+    def resume_all_torrents(self):
+        """
+        Resume all torrents in the session.
+        Fix for https://github.com/h3llrais3r/deluge-myscheduler/issues/4
+        """
+        for torrent in component.get("Core").torrentmanager.torrents.values():
+            torrent.resume()
+        component.get("EventManager").emit(SessionResumedEvent())
+
+    @export()
     def update_torrent(self, torrent_ids = None):
-        if not self.config['force_use_individual']: 
+        if not self.config['force_use_individual']:
             return
-        
+
         torrentmanager = component.get("Core").torrentmanager
-        
-        if torrent_ids is None: 
-            torrent_ids = torrentmanager.get_torrent_list() 
+
+        if torrent_ids is None:
+            torrent_ids = torrentmanager.get_torrent_list()
         elif not hasattr(torrent_ids, '__iter__'):
             torrent_ids = [torrent_ids]
-            
+
         for torrent_id in torrent_ids:
-            torrent = torrentmanager.torrents[torrent_id]        
-            
-            try: 
+            torrent = torrentmanager.torrents[torrent_id]
+
+            try:
                 tstate = self.torrent_states[torrent_id]
-            except KeyError: 
+            except KeyError:
                 tstate = {'forced' : False, 'paused' : False }
                 self.torrent_states[torrent_id] = tstate
-                
-            if self.state == 'Green' or self.state == 'Yellow': 
+
+            if self.state == 'Green' or self.state == 'Yellow':
                 if tstate['paused']:
                     torrent.resume()
                     tstate['paused'] = False
-            elif self.state == 'Red': 
-                # checking that state != paused is to make sure that we don't 
+            elif self.state == 'Red':
+                # checking that state != paused is to make sure that we don't
                 # set our paused flag on something that the user has paused previously
                 if not tstate['forced'] and torrent.state != 'Paused':
                     torrent.pause()
@@ -275,22 +294,22 @@ class Core(CorePluginBase):
                 elif tstate['forced']:
                     torrent.resume()
                     tstate['paused'] = False
-        
+
         self.torrent_states.save()
 
     def _on_torrent_finished(self, torrent_id):
-        if self.config["force_unforce_finished"]: 
-            try: 
+        if self.config["force_unforce_finished"]:
+            try:
                 tstate = self.torrent_states[torrent_id]
-            except KeyError: 
+            except KeyError:
                 pass
-            else: 
-                if tstate['forced']: 
+            else:
+                if tstate['forced']:
                     tstate['forced'] = False
                     tstate['paused'] = False
                     self.update_torrent(torrent_id)
-     
-    def _cleanup_states(self): 
+
+    def _cleanup_states(self):
         valid = set(component.get("Core").torrentmanager.get_torrent_list())
         saved = set(self.torrent_states.config.keys())
 
@@ -299,10 +318,10 @@ class Core(CorePluginBase):
     def _remove_torrent(self, torrent_ids):
         do_save = False
 
-        if not hasattr(torrent_ids, '__iter__'): 
+        if not hasattr(torrent_ids, '__iter__'):
             torrent_ids = [torrent_ids]
 
-        for torrent_id in torrent_ids: 
+        for torrent_id in torrent_ids:
             try:
                 try:
                     del self.torrent_states[torrent_id]
@@ -313,6 +332,6 @@ class Core(CorePluginBase):
                     do_save = True
             except KeyError:
                 pass
- 
+
         if do_save:
             self.torrent_states.save()
