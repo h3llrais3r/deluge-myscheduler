@@ -173,7 +173,7 @@ class GtkUI(GtkPluginBase):
         def on_state_deferred(state):
             self.state = state
             self.on_scheduler_event(state)
-        client.scheduler.get_state().addCallback(on_state_deferred)
+        client.myscheduler.get_state().addCallback(on_state_deferred)
         client.register_event_handler("SchedulerEvent", self.on_scheduler_event)
 
     def disable(self):
@@ -218,7 +218,7 @@ class GtkUI(GtkPluginBase):
             self.chkUnforceFinished.set_active(config["force_unforce_finished"])
 
 
-        client.scheduler.get_config().addCallback(on_get_config)
+        client.myscheduler.get_config().addCallback(on_get_config)
 
     def on_scheduler_event(self, state):
         self.state = state
