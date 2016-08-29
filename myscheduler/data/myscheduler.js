@@ -515,6 +515,31 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
 
         this.schedule = this.form.add(new Deluge.ux.ScheduleSelector());
 
+        this.forcedSettings = this.form.add({
+            xtype: 'fieldset',
+            border: false,
+            title: _('Forced Settings'),
+            autoHeight: true,
+            defaultType: 'checkbox',
+            labelWidth: 80
+        });
+
+        this.chkIndividual = this.forcedSettings.add({
+            xtype: 'checkbox',
+            name: 'chkIndividual',
+            height: 22,
+            hideLabel: true,
+            boxLabel: _('Use Individual Scheduling')
+        });
+
+        this.chkUnforceFinished = this.forcedSettings.add({
+            xtype: 'checkbox',
+            name: 'chkUnforceFinished',
+            height: 22,
+            hideLabel: true,
+            boxLabel: _('Un-Force on Finished')
+        });
+
         this.slowSettings = this.form.add({
             xtype: 'fieldset',
             border: false,
@@ -585,6 +610,8 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
         config['low_active'] = this.activeTorrents.getValue();
         config['low_active_down'] = this.activeDownloading.getValue();
         config['low_active_up'] = this.activeSeeding.getValue();
+        config["force_use_individual"] = this.chkIndividual.getValue();
+        config["force_unforce_finished"] = this.chkUnforceFinished.getValue();
 
         deluge.client.myscheduler.set_config(config);
     },
@@ -607,6 +634,8 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
                 this.activeTorrents.setValue(config['low_active']);
                 this.activeDownloading.setValue(config['low_active_down']);
                 this.activeSeeding.setValue(config['low_active_up']);
+                this.chkIndividual.setValue(config["force_use_individual"]);
+                this.chkUnforceFinished.setValue(config["force_unforce_finished"]);
             },
             scope: this
         });
