@@ -501,7 +501,8 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
 
     border: false,
     title: _('MyScheduler'),
-    layout: 'fit',
+    layout: 'form',
+    autoScroll: true,
 
     initComponent: function() {
         Deluge.ux.preferences.MySchedulerPage.superclass.initComponent.call(this);
