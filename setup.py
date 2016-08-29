@@ -41,7 +41,7 @@ from setuptools import setup
 __plugin_name__ = "MyScheduler"
 __author__ = "h3llrais3r"
 __author_email__ = "pooh_beer_1@hotmail.com"
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 __url__ = "http://deluge-torrent.org"
 __license__ = "GPLv3"
 __description__ = "Schedule limits on a per-hour per-day basis."
