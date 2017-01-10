@@ -691,7 +691,8 @@ Deluge.plugins.MySchedulerPlugin = Ext.extend(Deluge.Plugin, {
 	onEnable: function() {
 		this.prefsPage = deluge.preferences.addPage (new Deluge.ux.preferences.MySchedulerPage());
 
-        this.menuItem = deluge.menus.torrent.add(new Ext.menu.CheckItem ({
+        // insert at position 3 (after pause and resume) in menu
+        this.menuItem = deluge.menus.torrent.insert(2, new Ext.menu.CheckItem ({
             text: _('Forced Start'),
             checked: false,
 
