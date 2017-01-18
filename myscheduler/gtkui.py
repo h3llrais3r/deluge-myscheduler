@@ -168,7 +168,7 @@ class GtkUI(GtkPluginBase):
         
         torrentmenu = component.get("MenuBar").torrentmenu
         torrentmenu.connect("show", self.on_menu_show, None)
-        torrentmenu.append(self.menu)
+        torrentmenu.insert(self.menu, 4)
 
         def on_state_deferred(state):
             self.state = state

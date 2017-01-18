@@ -693,7 +693,7 @@ Deluge.plugins.MySchedulerPlugin = Ext.extend(Deluge.Plugin, {
 
         // insert at position 3 (after pause and resume) in menu
         this.menuItem = deluge.menus.torrent.insert(2, new Ext.menu.CheckItem ({
-            text: _('Forced Start'),
+            text: _('Force Start'),
             checked: false,
 
             checkHandler: function (item, checked) {
