@@ -650,21 +650,15 @@ Deluge.plugins.MySchedulerPlugin = Ext.extend(Deluge.Plugin, {
     name : 'MyScheduler',
     prefsPage: null,
     menuItem: null,
-
-    onDisable: function() {
-		deluge.preferences.removePage(this.prefsPage);
-        deluge.menus.torrent.remove(this.menuItem);
-
-        deluge.menus.torrent.un('beforeshow', this.onMenuShow, this);
-
-        this.prefsPage = null;
-        this.menuItem = null;
-	},
+    optionsTab: null,
+    optionsTabForceStartItem: null,
 
     onMenuShow: function () {
-        var ids = deluge.torrents.getSelectedIds();
+        // clear checkbox by default
         this.menuItem.setChecked(false, true);
 
+        // load checkbox value
+        var ids = deluge.torrents.getSelectedIds();
         deluge.client.myscheduler.get_forced (ids, {
             success: function (checked) {
                 // show true only if every id is forced=true, dumb loop as apparently IE can't handle a .IndexOf
@@ -675,46 +669,132 @@ Deluge.plugins.MySchedulerPlugin = Ext.extend(Deluge.Plugin, {
                         break;
                     }
                 }
-
                 this.menuItem.setChecked(res, true);
             },
-
             failure: function () {
-                console.warning ("Failed to get forced state");
+                console.warning ("Failed to get forced state for " + ids);
             },
-
             scope: this
         });
-        return true;
+    },
+
+    onMenuHide: function() {
+        // sync forced state to options tab
+        this.syncForcedStateToOptionsTab();
+    },
+
+    onTorrentsRowClick: function () {
+        // sync forced state to options tab
+        this.syncForcedStateToOptionsTab();
+    },
+
+    syncForcedStateToOptionsTab: function() {
+        // sync forced state to options tab
+        var ids = deluge.torrents.getSelectedIds();
+        if (ids.length > 0) {
+            deluge.client.myscheduler.get_forced (ids, {
+                success: function (checked) {
+                    // show true only if every id is forced=true, dumb loop as apparently IE can't handle a .IndexOf
+                    var res = true;
+                    for (var i = 0; i < checked.length; i++) {
+                        if (!checked[i]) {
+                            res = false;
+                            break;
+                        }
+                    }
+                    // set option
+                    deluge.details.get(4).optionsManager.set('force_start', res);
+                },
+                failure: function () {
+                    console.warning ("Failed to get forced state for " + ids);
+                },
+                scope: this
+            });
+        } else {
+            // clear option when nothing is selected
+            deluge.details.get(4).optionsManager.set('force_start', false);
+        }
+    },
+
+    onForceStartCheckedInMenu: function (item, checked) {
+        // handle checkbox selection in menu
+        var ids = deluge.torrents.getSelectedIds();
+        deluge.client.myscheduler.set_forced (ids, checked, {
+            success: function () {
+                console.log ("Setting forced state = " + checked + " for " + ids);
+            },
+            failure: function () {
+                console.warning ("Failed to set forced state = " + checked + " for " + ids);
+                this.menuItem.setChecked(false, true);
+            },
+            scope: this
+        });
+    },
+
+    onForceStartClickInOptions: function(event, checkbox) {
+        // handle checkbox click actions in options tab
+        // only handle the 'click' event and skip others like 'change'
+        if(event.type == 'click') {
+            var ids = deluge.torrents.getSelectedIds();
+            deluge.client.myscheduler.set_forced (ids, checkbox.checked, {
+                success: function () {
+                    console.log ("Setting forced state = " + checkbox.checked + " for " + ids);
+                },
+                failure: function () {
+                    console.warning ("Failed to set forced state = " + checkbox.checked + " for " + ids);
+                },
+                scope: this
+            });
+        }
     },
 
 	onEnable: function() {
+        // load prefs page
 		this.prefsPage = deluge.preferences.addPage (new Deluge.ux.preferences.MySchedulerPage());
 
-        // insert at position 3 (after pause and resume) in menu
+        // load menu - insert at position 3 (after pause and resume)
         this.menuItem = deluge.menus.torrent.insert(2, new Ext.menu.CheckItem ({
             text: _('Force Start'),
             checked: false,
-
-            checkHandler: function (item, checked) {
-                var ids = deluge.torrents.getSelectedIds();
-                deluge.client.myscheduler.set_forced (ids, checked, {
-                    success: function () {
-                        console.log ("Successfully set forced = " + checked);
-                    },
-
-                    failure: function () {
-                        console.warning ("Failed to set forced for " + ids + " to " + checked);
-                        this.menuItem.setChecked(false, true);
-                    },
-
-                    scope: this
-                });
-            }
+            checkHandler: this.onForceStartCheckedInMenu
         }));
 
-        deluge.menus.torrent.on('show', this.onMenuShow, this);
-    }
+        // load option - insert in the details options tab, general fieldset
+        this.optionsTab = deluge.details.get(4);
+        this.optionsTabForceStartItem = this.optionsTab.fieldsets.general.add({
+			fieldLabel: '',
+			labelSeparator: '',
+			boxLabel: 'Force start',
+			id: 'force_start',
+            handler: null // we can set a handler here also, but we use the onClick for now
+		});
+
+        // only bind to click event because we only want to handle real checkbox click events here!
+        this.optionsTabForceStartItem.onClick = this.onForceStartClickInOptions;
+
+        // bind the field so the options manager can manage it
+        this.optionsTab.optionsManager.bind('force_start', this.optionsTabForceStartItem);
+
+        // bind events
+        deluge.menus.torrent.on('show', this.onMenuShow, this, {stopEvent : true});
+        deluge.menus.torrent.on('hide', this.onMenuHide, this, {stopEvent : true});
+        deluge.torrents.on('rowclick', this.onTorrentsRowClick, this, {stopEvent : true});
+    },
+
+    onDisable: function() {
+		deluge.preferences.removePage(this.prefsPage);
+        deluge.menus.torrent.remove(this.menuItem);
+        deluge.details.get(4).fieldsets.general.remove(this.optionsTabForceStartItem);
+
+        deluge.menus.torrent.un('show', this.onMenuShow, this);
+        deluge.menus.torrent.un('hide', this.onMenuHide, this);
+        deluge.torrents.un('rowclick', this.onTorrentsRowClick, this);
+
+        this.prefsPage = null;
+        this.menuItem = null;
+        this.optionsTab = null;
+        this.optionsTabForceStartItem = null;
+	}
 });
 
 Deluge.registerPlugin('MyScheduler', Deluge.plugins.MySchedulerPlugin);
