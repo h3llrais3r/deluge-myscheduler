@@ -55,7 +55,8 @@ DEFAULT_PREFS = {
     "low_active_up": -1,
     "button_state": [[0] * 7 for dummy in xrange(24)],
     "force_use_individual" : True,
-    "force_unforce_finished" : True
+    "force_unforce_finished" : True,
+    "ignore_scheduler" : False
 }
 
 DEFAULT_STATES = {}
@@ -163,7 +164,7 @@ class Core(CorePluginBase):
         state = self.get_state()
         self.update_torrent()
 
-        if state == "Green":
+        if state == "Green" or self.config["ignore_scheduler"]:
             # This is Green (Normal) so we just make sure we've applied the
             # global defaults
             self.__apply_set_functions()
@@ -189,7 +190,7 @@ class Core(CorePluginBase):
             component.get("EventManager").emit(SchedulerEvent(self.state))
 
         # called after self.state is set
-        if self.config["force_use_individual"] and (state == 'Green' or state == 'Red'):
+        if self.config["force_use_individual"] and (state == 'Green' or state == 'Red' or self.config["ignore_scheduler"]):
             self.update_torrent()
 
         if timer:
@@ -281,7 +282,7 @@ class Core(CorePluginBase):
                 tstate = {'forced' : False, 'paused' : False }
                 self.torrent_states[torrent_id] = tstate
 
-            if self.state == 'Green' or self.state == 'Yellow':
+            if self.state == 'Green' or self.state == 'Yellow' or self.config["ignore_scheduler"]:
                 if tstate['paused']:
                     torrent.resume()
                     tstate['paused'] = False
