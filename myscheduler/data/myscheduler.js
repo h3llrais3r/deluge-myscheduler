@@ -516,6 +516,15 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
 
         this.schedule = this.form.add(new Deluge.ux.ScheduleSelector());
 
+        this.ignoreSettings = this.form.add({
+            xtype: 'fieldset',
+            border: false,
+            title: _('Scheduler Override'),
+            autoHeight: true,
+            defaultType: 'checkbox',
+            labelWidth: 80
+        });
+
         this.forcedSettings = this.form.add({
             xtype: 'fieldset',
             border: false,
@@ -523,6 +532,14 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
             autoHeight: true,
             defaultType: 'checkbox',
             labelWidth: 80
+        });
+
+        this.chkIgnoreScheduler = this.ignoreSettings.add({
+            xtype: 'checkbox',
+            name: 'chkIgnoreScheduler',
+            height: 22,
+            hideLabel: true,
+            boxLabel: _('Ignore Scheduler')
         });
 
         this.chkIndividual = this.forcedSettings.add({
@@ -613,6 +630,7 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
         config['low_active_up'] = this.activeSeeding.getValue();
         config["force_use_individual"] = this.chkIndividual.getValue();
         config["force_unforce_finished"] = this.chkUnforceFinished.getValue();
+        config["ignore_scheduler"] = this.chkIgnoreScheduler.getValue();
 
         deluge.client.myscheduler.set_config(config);
     },
@@ -637,6 +655,7 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
                 this.activeSeeding.setValue(config['low_active_up']);
                 this.chkIndividual.setValue(config["force_use_individual"]);
                 this.chkUnforceFinished.setValue(config["force_unforce_finished"]);
+                this.chkIgnoreScheduler.setValue(config["ignore_scheduler"])
             },
             scope: this
         });
