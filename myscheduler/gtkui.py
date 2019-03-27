@@ -201,6 +201,7 @@ class GtkUI(GtkPluginBase):
         config["low_active_down"] = self.spin_active_down.get_value_as_int()
         config["low_active_up"] = self.spin_active_up.get_value_as_int()
         config["button_state"] = self.scheduler_select.button_state
+        config["ignore_schedule"] = self.chkIgnoreSchedule.get_active()
         config["force_use_individual"] = self.chkIndividual.get_active()
         config["force_unforce_finished"] = self.chkUnforceFinished.get_active()
         client.myscheduler.set_config(config)
@@ -214,9 +215,9 @@ class GtkUI(GtkPluginBase):
             self.spin_active.set_value(config["low_active"])
             self.spin_active_down.set_value(config["low_active_down"])
             self.spin_active_up.set_value(config["low_active_up"])
+            self.chkIgnoreSchedule.set_active(config["ignore_schedule"])
             self.chkIndividual.set_active(config["force_use_individual"])
             self.chkUnforceFinished.set_active(config["force_unforce_finished"])
-
 
         client.myscheduler.get_config().addCallback(on_get_config)
 
@@ -273,10 +274,14 @@ class GtkUI(GtkPluginBase):
         hbox.pack_start(self.scheduler_select, True, True)
         frame = gtk.Frame()
         label = gtk.Label()
-        label.set_markup("<b>Schedule</b>")
+        label.set_markup("<b>Schedule Settings</b>")
         frame.set_label_widget(label)
         frame.set_shadow_type(gtk.SHADOW_NONE)
-        frame.add(hbox)
+        vbox_schedule_settings = gtk.VBox()
+        self.chkIgnoreSchedule = gtk.CheckButton("Ignore Schedule")
+        vbox_schedule_settings.pack_start(self.chkIgnoreSchedule)
+        vbox_schedule_settings.pack_start(hbox)
+        frame.add(vbox_schedule_settings)
 
         vbox.pack_start(frame, True, True)
         vbox.pack_start(hover)
@@ -284,15 +289,14 @@ class GtkUI(GtkPluginBase):
         frame = gtk.Frame()
         label = gtk.Label()
         label.set_markup(_("<b>Forced Settings</b>"))
-        frame.set_label_widget(label)
-            
-        forcedvbox = gtk.VBox(False, 1)
+        frame.set_label_widget(label)    
+        vbox_forced_settings = gtk.VBox(False, 1)
         self.chkIndividual = gtk.CheckButton("Use Individual Scheduling")
-        forcedvbox.pack_start(self.chkIndividual)
+        vbox_forced_settings.pack_start(self.chkIndividual)
         self.chkUnforceFinished = gtk.CheckButton("Un-Force on Finished")
-        forcedvbox.pack_start(self.chkUnforceFinished)        
+        vbox_forced_settings.pack_start(self.chkUnforceFinished)
+        frame.add(vbox_forced_settings)
 
-        frame.add(forcedvbox)
         vbox.pack_start(frame, False, False)
 
         table = gtk.Table(3, 4)

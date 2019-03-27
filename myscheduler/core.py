@@ -54,6 +54,7 @@ DEFAULT_PREFS = {
     "low_active_down": -1,
     "low_active_up": -1,
     "button_state": [[0] * 7 for dummy in xrange(24)],
+    "ignore_schedule" : False,
     "force_use_individual" : True,
     "force_unforce_finished" : True
 }
@@ -212,6 +213,11 @@ class Core(CorePluginBase):
 
     @export()
     def get_state(self):
+        # Return 'green' state when schedule is ignored
+        if self.config['ignore_schedule']:
+            return STATES[0]
+
+        # Get state from schedule
         now = time.localtime(time.time())
         level = self.config["button_state"][now[3]][now[6]]
         return STATES[level]
