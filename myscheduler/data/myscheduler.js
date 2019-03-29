@@ -35,7 +35,7 @@ Ext.ns('Deluge.ux');
 
 Deluge.ux.ScheduleSelector = Ext.extend(Ext.form.FieldSet, {
 
-    title: _('Schedule'),
+    // title: _('Schedule'),
     autoHeight: true,
     style: 'margin-bottom: 0px; padding-bottom: 0px;',
     border: false,
@@ -514,7 +514,24 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
             autoHeight: true
         });
 
-        this.schedule = this.form.add(new Deluge.ux.ScheduleSelector());
+        this.scheduleSettings = this.form.add({
+            xtype: 'fieldset',
+            border: false,
+            title: _('Schedule Settings'),
+            autoHeight: true,
+            defaultType: 'checkbox',
+            labelWidth: 80
+        });
+
+        this.chkIgnoreSchedule = this.scheduleSettings.add({
+            xtype: 'checkbox',
+            name: 'chkIgnoreSchedule',
+            height: 22,
+            hideLabel: true,
+            boxLabel: _('Ignore Schedule')
+        });
+
+        this.schedule = this.scheduleSettings.add(new Deluge.ux.ScheduleSelector());
 
         this.forcedSettings = this.form.add({
             xtype: 'fieldset',
@@ -602,8 +619,15 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
     },
 
     onApply: function() {
+        // only apply when settings have already been loaded (page must have been rendered)
+        // this to prevent javascript error clicking on apply on other page
+        // because the onApply is called for all pages
+        if (this.schedule.scheduleCells == undefined) {
+            return;
+        }
+
         // build settings object
-        var config = { }
+        var config = { };
 
         config['button_state'] = this.schedule.getConfig();
         config['low_down'] = this.downloadLimit.getValue();
@@ -611,6 +635,7 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
         config['low_active'] = this.activeTorrents.getValue();
         config['low_active_down'] = this.activeDownloading.getValue();
         config['low_active_up'] = this.activeSeeding.getValue();
+        config["ignore_schedule"] = this.chkIgnoreSchedule.getValue();
         config["force_use_individual"] = this.chkIndividual.getValue();
         config["force_unforce_finished"] = this.chkUnforceFinished.getValue();
 
@@ -635,6 +660,7 @@ Deluge.ux.preferences.MySchedulerPage = Ext.extend(Ext.Panel, {
                 this.activeTorrents.setValue(config['low_active']);
                 this.activeDownloading.setValue(config['low_active_down']);
                 this.activeSeeding.setValue(config['low_active_up']);
+                this.chkIgnoreSchedule.setValue(config["ignore_schedule"]);
                 this.chkIndividual.setValue(config["force_use_individual"]);
                 this.chkUnforceFinished.setValue(config["force_unforce_finished"]);
             },
