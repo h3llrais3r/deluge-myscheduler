@@ -2,3 +2,10 @@
 
 Modified version of the Deluge scheduler plugin with 'force start' support.
 Many thanks to [@jamielennox](https://github.com/jamielennox) for the initial version and [@kingamajick](https://github.com/kingamajick) for adding the webui component and cleanup.
+
+## Deluge 2.x
+If you are searching for the plugin for Deluge 2.x version, please use latest version `>=1.0.0` from `master` branch.
+
+## Deluge 1.3.x
+
+If you are searching for the plugin for Deluge 1.3.x version, please use latest version `<1.0.0` from `deluge-1.3.x` branch.
