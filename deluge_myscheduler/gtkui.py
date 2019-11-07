@@ -225,7 +225,7 @@ class GtkUI(Gtk3PluginBase):
         self.menu = None
 
     def on_apply_prefs(self):
-        log.debug('applying prefs for MyScheduler')
+        log.debug('Applying prefs for MyScheduler')
         config = {}
         config['low_down'] = self.spin_download.get_value()
         config['low_up'] = self.spin_upload.get_value()
@@ -240,7 +240,7 @@ class GtkUI(Gtk3PluginBase):
 
     def on_show_prefs(self):
         def on_get_config(config):
-            log.debug('config: %s', config)
+            log.debug('Config: %s', config)
             self.scheduler_select.set_button_state(config['button_state'])
             self.spin_download.set_value(config['low_down'])
             self.spin_upload.set_value(config['low_up'])
