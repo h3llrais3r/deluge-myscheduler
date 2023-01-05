@@ -15,8 +15,8 @@ from setuptools import find_packages, setup
 
 __plugin_name__ = 'MyScheduler'
 __author__ = 'h3llrais3r'
-__author_email__ = 'pooh_beer_1@hotmail.com'
-__version__ = '2.0.0'
+__author_email__ = 'h3llrais3r.github@gmail.com'
+__version__ = '2.0.0a1'
 __url__ = 'http://deluge-torrent.org'
 __license__ = 'GPLv3'
 __description__ = 'MyScheduler plugin for Deluge'
